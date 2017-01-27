@@ -1,0 +1,51 @@
+<html>
+    <head>
+        <script>
+            var num_connections = 1;
+            function setup_connections()
+            {
+                for (var i = 0; i < num_connections; ++i)
+                {
+                    var ws = new WebSocket("ws://localhost:6699");
+
+                    ws.onmessage = function(evt) {
+                        if (evt.data && evt.data.startsWith("#"))
+                        {
+                            console.log("Create DOM element for tag" + evt.data);
+                            var tagName = document.getElementById("tagName");
+                            tagName.textContent = evt.data; 
+                        }
+                        else
+                        {
+                            console.log(evt);
+                          
+                            if (evt.data && evt.data.startsWith("{"))
+                            {
+                                var data = JSON.parse(evt.data)
+                                var tagCount = document.getElementById("tagCount");
+                                var chargeLevel = document.getElementById("chargeLevel");
+                                tagCount.textContent = "Count: " + data.total_count; 
+                                chargeLevel.textContent = "Charge Level: " + data.charge_level; 
+                            }
+                        }
+                    };
+                    ws.onopen = function(evt) {
+                        ws.send("Hello");
+                    };
+                    
+                } 
+            } 
+            document.addEventListener("DOMContentLoaded", setup_connections, false);
+        </script>
+    </head>
+    <body>
+        <div id="tagsContainer" style="max-width: 900px">
+         <div id="tagName" style="width:100%; text-align: left;">
+         </div>
+         <div id="tagCount" style="width:100%; text-align: left;">
+         </div>
+         <div id="chargeLevel" style="width:100%; text-align: left;">
+         </div>
+        </div>
+    </body>
+</html>
