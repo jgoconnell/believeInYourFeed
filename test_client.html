@@ -2,11 +2,17 @@
     <head>
         <script>
             var num_connections = 1;
-            function setup_connections()
+            function make_connection()
+            {
+                var inputAddr =  document.getElementById("ipAddrInput");
+                var addr = inputAddr.value;
+                setup_connections(addr);
+            }
+            function setup_connections(ip_address)
             {
                 for (var i = 0; i < num_connections; ++i)
                 {
-                    var ws = new WebSocket("ws://localhost:6699");
+                    var ws = new WebSocket("ws://" + ip_address + ":6699");
 
                     ws.onmessage = function(evt) {
                         if (evt.data && evt.data.startsWith("#"))
@@ -29,16 +35,27 @@
                             }
                         }
                     };
+                    // Log errors
+                    ws.onerror = function (error) {
+                          console.log('WebSocket Error ' + error);
+                    };
+                    ws.onclose = function (error) {
+                          console.log('WebSocket Closed ' + error);
+                    };
                     ws.onopen = function(evt) {
                         ws.send("Hello");
                     };
                     
                 } 
             } 
-            document.addEventListener("DOMContentLoaded", setup_connections, false);
+            //document.addEventListener("DOMContentLoaded", setup_connections, false);
         </script>
     </head>
     <body>
+        <form id="connectionForm" name="connectForm">
+            <input type="text" id="ipAddrInput" value="127.0.0.1"></input>
+            <input type="button" value="connect" onclick="make_connection()"></input>
+        </form>
         <div id="tagsContainer" style="max-width: 900px">
          <div id="tagName" style="width:100%; text-align: left;">
          </div>
