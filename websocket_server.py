@@ -2,12 +2,17 @@
 # coding: utf-8
 import time
 import json
+import threading
 
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
-from gevent.pywsgi import WSGIServer
-from geventwebsocket.handler import WebSocketHandler
+USE_GEVENT = False
+if USE_GEVENT:
+    from gevent.pywsgi import WSGIServer
+    from geventwebsocket.handler import WebSocketHandler
+else:
+    from SimpleWebSocketServer import SimpleWebSocketServer, WebSocket
 
 
 class HashTagCount(object):
@@ -126,6 +131,11 @@ class TestTweetListener(StreamListener):
         print(" Received a  on_disconnect")
         return True
 
+"""
+
+Begin GEVENT STUFF
+
+""" 
 
 class ClientDataPusher(object):
     def __init__(self, ws, tag):
@@ -149,7 +159,6 @@ class ClientDataPusher(object):
 
 client_data_pushers = []
 
-
 def app(environ, start_response):
     ws = environ['wsgi.websocket']
     data = ws.receive()
@@ -159,6 +168,67 @@ def app(environ, start_response):
         client_data_pushers.append(ClientDataPusher(ws, tag))
     else:
         ws.close()
+
+"""
+
+END GEVENT stuff
+
+"""
+
+
+battery_clients = []
+
+class BatteryClient(WebSocket):
+
+    def handleMessage(self):
+        print("Got a message from the client, thats weird")
+        if not self.active:
+            self.active = True
+            # Ok, we not using gevent but rather a hackHacky toy implementation so life is difficult now
+            #import pdb; pdb.set_trace()
+            t = threading.Thread(group=None, target=self.start_pushing);
+            t.start()
+
+    def handleConnected(self):
+        #import pdb; pdb.set_trace()
+        print("Got a new connection from address: %s" % self.address[0])
+        if len(battery_clients) >= settings.max_clients:
+            print("Too many clients... close the connection")
+            self.sendClose()
+        else:
+            #import pdb; pdb.set_trace()
+            for c in battery_clients:
+                if c.address[0] == self.address[0]:
+                    print("Got another connection from the same address..switch tags!!")
+                    c.active = False
+                    battery_clients.remove(c)
+            self.tag = tag_counter.add_user()
+            print ("Assigning this tag to the new connection: %s" % self.tag)
+            battery_clients.append(self)
+            self.active = False
+
+    def handleClose(self):
+        print("Got a closeConnection message...")
+        for c in battery_clients:
+            if self == c:
+                print("Removing batteryClient: %s" % c)
+                self.active = False
+                battery_clients.remove(self)
+
+    def start_pushing(self):
+        print("About to start pushing - send tag to user")
+        self.sendMessage(unicode(self.tag))
+        while self.active:
+            time.sleep(settings.client_poll_interval) 
+            print("Wake up and send the count to our client")
+            data_for_client = {}
+            data_for_client["charge_level"] = tag_counter.hashtag_map[self.tag].get_value()
+            data_for_client["total_count"] = tag_counter.hashtag_map[self.tag].count
+            data_for_client["last_updated"] = tag_counter.hashtag_map[self.tag].last_updated
+            data_for_client["tag_name"] = self.tag
+            print ("Sending data to client using sendMessage: %s" % data_for_client)
+            self.sendMessage(u"%s" % json.dumps(data_for_client))
+
 
 
 if __name__ == "__main__":
@@ -171,11 +241,18 @@ if __name__ == "__main__":
     stream.filter(track=tag_counter.hash_tags, async=True)
     try:
         print("Serving starting up listenening on port: %d" % settings.server_port)
-        server = WSGIServer(("", settings.server_port), app,handler_class=WebSocketHandler)
-        server.serve_forever()
+        if USE_GEVENT:
+            server = WSGIServer(("", settings.server_port), app,handler_class=WebSocketHandler)
+            server.serve_forever()
+        else:
+            server = SimpleWebSocketServer('', settings.server_port, BatteryClient)
+            server.serveforever()
     except KeyboardInterrupt, e:
         print("Receieved Ctrl-C, disconnect the tweepy")
         stream.disconnect()
+        print ("Set all clients to inactive:")
+        for c in battery_clients:
+            c.active=False
     except Exception, e:
         print("Unknown exception, byebye : %s" % e)
     settings.KILL_TWEEPY = True

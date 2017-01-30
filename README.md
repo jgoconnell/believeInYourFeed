@@ -3,10 +3,16 @@ Arduino Yún using Python's Tweepy to change stuff
 
 ### Install required packages:
 
-e.g. with pip
+e.g. with pip (AND Gevent)
 
 ```
 pip install tweepy gevent-websocket
+```
+
+Without Gevent
+```
+pip install tweepy git+https://github.com/dpallot/simple-websocket-server.git
+
 ```
 
 ### Run server
