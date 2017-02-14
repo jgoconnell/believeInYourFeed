@@ -231,14 +231,26 @@ class BatteryClient(WebSocket):
 
 
 
-if __name__ == "__main__":
-
+def runTweepy():
     l = TestTweetListener()
     auth = OAuthHandler(Settings.consumer_key, Settings.consumer_secret)
     auth.set_access_token(Settings.access_token, Settings.access_token_secret)
 
     stream = Stream(auth, l, timeout=40000)
-    stream.filter(track=tag_counter.hash_tags, async=True)
+    while True: 
+        try:
+            stream.filter(track=tag_counter.hash_tags)
+        except Exception as e:
+            print("Uh oh, Tweepy bombed out with an error: %s" % e)
+            print("Restart stream filtering...")
+            continue
+
+
+if __name__ == "__main__":
+
+    t = threading.Thread(group=None, target=runTweepy)
+    t.daemon=True
+    t.start()
     try:
         print("Serving starting up listenening on port: %d" % settings.server_port)
         if USE_GEVENT:
@@ -249,7 +261,7 @@ if __name__ == "__main__":
             server.serveforever()
     except KeyboardInterrupt, e:
         print("Receieved Ctrl-C, disconnect the tweepy")
-        stream.disconnect()
+        #stream.disconnect()
         print ("Set all clients to inactive:")
         for c in battery_clients:
             c.active=False
